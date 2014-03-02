@@ -15,15 +15,14 @@ Bundle 'mikewadsten/vim-gitwildignore'
 
   * Discovers `.gitignore` files in your repository automatically, without
     using `**/.gitignore` searching.
-
   * Buffer-local `wildignore` values - so you can switch between buffers
     without worrying about global state.
 
 ## TODO
 
+  * Add support for ignore negations (leading `!` characters)
   * Investigate whether buffer-local `wildignore` is really necessary, given
     that the `.gitignore` entries have the directory path prepended to them.
-
   * Make sure this works right when exploring in netrw.
 
 
