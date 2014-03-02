@@ -7,7 +7,7 @@
 
 " My version of gitwildignore requires fugitive
 if !exists('g:loaded_fugitive')
-  echom "vim-gitwildignore: vim-fugitive is required!"
+  echoe "vim-gitwildignore: vim-fugitive is required!"
   finish
 elseif exists('g:loaded_gitwildignore')
   finish
@@ -99,7 +99,14 @@ function! gitwildignore#discover_gitignore_files(root)
 
   let l:findcmd = 'git ls-files "' . a:root . '"'
   let l:findcmd .= "| grep '\.gitignore$'"
-  let l:files = split(system(l:findcmd), '\n')
+  let l:findoutput = system(l:findcmd)
+  let l:files = split(l:findoutput, '\n')
+
+  if l:findoutput =~ "^fatal:"
+    echoe "gitwildignore couldn't discover .gitignore files:"
+    echoe l:findoutput
+    let l:files = []
+  endif
 
   return l:files
 endfunction
