@@ -1,52 +1,208 @@
-" gitwildignore - Vundle plugin for appendng files in .gitignore to wildignore
-" Maintainer: Zach Wolfe <zdwolfe.github.io>
-" Version 0.0.1
+" gitwildignore - Vundle plugin for appending files in .gitignore to wildignore
+" Original Author: Zach Wolfe <zdwolfe.github.io>
 " Inspired by Adam Bellaire's gitignore script
+"
+" Maintainer: Mike Wadsten
+" Version 0.0.2
 
-if exists('g:loaded_gitwildignore')
+" My version of gitwildignore requires fugitive
+if !exists('g:loaded_fugitive')
+  echom "vim-gitwildignore: vim-fugitive is required!"
+  finish
+elseif exists('g:loaded_gitwildignore')
   finish
 endif
+
 let g:loaded_gitwildignore = 1
-let importants = []
 
-" Return a list of file patterns we want to ignore in the gitignore
-" file parameter
-function! Get_file_patterns(gitignore)
-  let l:gitignore = fnamemodify(a:gitignore, ':p')
-  let l:path = fnamemodify( a:gitignore, ':p:h')
-
-  let l:file_patterns = []
-  if filereadable(l:gitignore)
-    " Parse each line according to http://git-scm.com/docs/gitignore
-    " See PATTERN FORMAT
-    for line in readfile(l:gitignore)
-      let l:file_pattern = ''
-      if or(line =~ '^#', line == '')
-        continue
-      elseif line =~ '^!'
-        " lines beginning with '!' are 'important' files and should be
-        " included even if they were previously ignored
-        " currently unimplemented
-        let importants += l:path . '/' . line
-      elseif (line =~ '/$')
-        let l:directory = substitute(line, '/$', '', '')
-        let l:file_pattern = '*/' . l:directory . '/*'
-      else 
-        let l:file_pattern = line
-      endif
-      let l:file_patterns += [ l:file_pattern ]
-    endfor
-  endif
-  return l:file_patterns
+" Return essentially '<path>/..'
+function! s:updir(path)
+  return fnamemodify(a:path, ":h")
 endfunction
 
+function! gitwildignore#find_git_root(path)
+  if a:path =~ ''
+    let l:filepath = expand('%:p:h')
+  else
+    let l:filepath = a:path
+  endif
 
-let gitignore_files = split(globpath('**', '\.gitignore'), '\n')
+  " We already found the git root, so just return it.
+  if exists('b:git_root')
+    return b:git_root
+  endif
 
-let wildignore_file_patterns = []
-for gitignore_file in gitignore_files
-  let wildignore_file_patterns += Get_file_patterns(gitignore_file)
-endfor
+  let l:git_dir = fugitive#extract_git_dir(l:filepath)
+  if l:git_dir == ''
+    " No Git root to be found
+    return ''
+  endif
 
-let execthis = "set wildignore+=" . join(wildignore_file_patterns, ',')
-execute execthis
+  let b:git_root = s:updir(l:git_dir)
+
+  return b:git_root
+endfunction
+
+function! gitwildignore#get_file_patterns(ignorefile)
+  let l:gitignore = fnamemodify(a:ignorefile, ':p')
+  let l:ignorepath = fnamemodify(l:gitignore, ':h')
+
+  let l:ignore_patterns = []
+  let l:include_patterns = []
+
+  if filereadable(l:gitignore)
+    " Parse .gitignore file according to Git docs
+    " http://git-scm.com/docs/gitignore#_pattern_format
+    for line in readfile(l:gitignore)
+      let l:ignore_pattern = ''
+      let l:include_pattern = ''
+      if line =~ '^#' || line == ''
+        " Skip comments and empty lines
+        continue
+      elseif line =~ '^!'
+        " Lines starting with ! negates the given search pattern. Any matching
+        " file excluded by a previous (earlier, higher-up) pattern will be
+        " included again. If a parent directory is excluded, this has no
+        " effect (the file is not re-included).
+        let l:include_pattern = line[1:]
+      elseif line =~ '/$'
+        " Explicit directory ignore.
+        let l:directory = substitute(line, '/$', '', '')
+        if isdirectory(l:ignorepath . '/' . l:directory)
+          " Ignore the directory and anything inside it
+          let l:ignore_pattern = l:directory . '/**'
+        else
+          " It's not a directory, so just skip it
+          continue
+        endif
+      else
+        let l:ignore_pattern = line
+      endif
+
+      if strlen(l:ignore_pattern)
+        " We got an ignore pattern out of the line
+        let l:ignore_patterns += [ l:ignorepath . '/' . l:ignore_pattern ]
+      elseif strlen(l:include_pattern)
+        " We got an un-include pattern out of the line
+        let l:include_patterns += [ l:ignorepath . '/' . l:include_pattern ]
+      endif
+    endfor
+  endif
+
+  return {'ignore': l:ignore_patterns, 'include': l:include_patterns}
+endfunction
+
+function! gitwildignore#get_all_ignores(path)
+  let l:gitignore_files = []
+  let l:git_root = gitwildignore#find_git_root(a:path)
+
+  let l:ignore_patterns = {'ignore': [], 'include': []}
+
+  if !strlen(l:git_root)
+    " No Git root was found. Don't try to do any processing.
+    return l:ignore_patterns
+  endif
+
+  let l:current_path = fnamemodify(a:path, ':p')
+
+  " Vimscript has no do-while, so just do that manually.
+  let l:ignore = l:current_path . '/' . '.gitignore'
+  if filereadable(l:ignore)
+    let l:gitignore_files += [l:ignore]
+  endif
+  let l:previous = l:current_path
+  let l:current_path = s:updir(l:current_path)
+
+  " Recurse downwards, finding .gitignore files until we've looked in git_root
+  while !(l:previous ==# l:git_root)
+    let l:ignore = l:current_path . '/' . '.gitignore'
+    if filereadable(l:ignore)
+      let l:gitignore_files += [l:ignore]
+    endif
+    let l:previous = l:current_path
+    let l:current_path = s:updir(l:current_path)
+  endwhile
+
+  " Collect ignore patterns from each ignorefile
+  for f in l:gitignore_files
+    let l:patterns = gitwildignore#get_file_patterns(f)
+    let l:ignore_patterns.ignore += l:patterns.ignore
+    let l:ignore_patterns.include += l:patterns.include
+  endfor
+
+  return l:ignore_patterns
+endfunction
+
+" Ignore-patterns cache, keyed by git root. Save a minor amount of processing,
+" but also useful for debugging, maybe.
+" (The "caching" means remembering ALL ignored files throughout a repository,
+" so that if you first opened up <root>/inner/dir1/file1, then open
+" <root>/inner/dir2/file1, the wildignore value will include the ignored files
+" from inner/dir1/.gitignore, and then if you go back to inner/dir1/file1, the
+" wildignore value will now include those from inner/dir2/.gitignore.)
+
+if !exists('g:gitwildignore_patterns')
+  let g:gitwildignore_patterns = {}
+endif
+
+if !has_key(g:gitwildignore_patterns, '/')
+  let g:gitwildignore_patterns['/'] = ['*.pyc', '*.sw[op]']
+endif
+
+function! gitwildignore#init(path)
+  " Based on vim-fugitive fugitive#detect function
+  if exists('b:git_root') && (b:git_root ==# '' || b:git_root =~# '/$')
+    unlet b:git_root
+  endif
+
+  if !exists('b:git_root')
+    let dir = gitwildignore#find_git_root(a:path)
+    if dir !=# ''
+      let b:git_root = dir
+    endif
+  endif
+
+  if exists('b:git_root')
+    " Look up cached ignore values.
+    if has_key(g:gitwildignore_patterns, b:git_root)
+      let l:ignored = g:gitwildignore_patterns[b:git_root]
+    else
+      let l:ignored = []
+    endif
+
+    " Detect ignored files now, merge them in with l:ignored
+    let l:detected = gitwildignore#get_all_ignores(a:path)
+
+    for ignore in l:detected.ignore
+      " Add each ignore which is not already in the list.
+      if !count(l:ignored, ignore)
+        let l:ignored += [ignore]
+      endif
+    endfor
+
+    let g:gitwildignore_patterns[b:git_root] = l:ignored
+
+    let l:wildignorelist = g:gitwildignore_patterns['/'] + l:ignored
+    let l:wildignore = join(l:wildignorelist, ',')
+
+    let b:wildignorelist = l:wildignorelist
+    let b:saved_wildignore = &wildignore
+    execute "set wildignore=" . l:wildignore
+  endif
+endfunction
+
+function! gitwildignore#leave()
+  if exists('b:saved_wildignore')
+    execute "set wildignore=" . b:saved_wildignore
+    unlet b:saved_wildignore
+    unlet b:wildignorelist
+  endif
+endfunction
+
+augroup gitwildignore
+  autocmd!
+  " Set wildignore when you go into a buffer.
+  autocmd BufNewFile,BufReadPost * call gitwildignore#init(expand('<amatch>:p'))
+  " Cleanup when leaving a buffer.
+  autocmd BufLeave * call gitwildignore#leave()
+augroup END
