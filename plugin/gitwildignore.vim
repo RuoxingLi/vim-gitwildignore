@@ -92,6 +92,18 @@ function! gitwildignore#get_file_patterns(ignorefile)
   return {'ignore': l:ignore_patterns, 'include': l:include_patterns}
 endfunction
 
+function! gitwildignore#discover_gitignore_files(root)
+  " a:root is the root of the Git repository.
+  " This will error out if you pass in a root path that's outside the
+  " repository, but that should only happen if you call this manually...
+
+  let l:findcmd = 'git ls-files "' . a:root . '"'
+  let l:findcmd .= "| grep '\.gitignore$'"
+  let l:files = split(system(l:findcmd), '\n')
+
+  return l:files
+endfunction
+
 function! gitwildignore#get_all_ignores(path)
   let l:gitignore_files = []
   let l:git_root = gitwildignore#find_git_root(a:path)
@@ -103,25 +115,7 @@ function! gitwildignore#get_all_ignores(path)
     return l:ignore_patterns
   endif
 
-  let l:current_path = fnamemodify(a:path, ':p')
-
-  " Vimscript has no do-while, so just do that manually.
-  let l:ignore = l:current_path . '/' . '.gitignore'
-  if filereadable(l:ignore)
-    let l:gitignore_files += [l:ignore]
-  endif
-  let l:previous = l:current_path
-  let l:current_path = s:updir(l:current_path)
-
-  " Recurse downwards, finding .gitignore files until we've looked in git_root
-  while !(l:previous ==# l:git_root)
-    let l:ignore = l:current_path . '/' . '.gitignore'
-    if filereadable(l:ignore)
-      let l:gitignore_files += [l:ignore]
-    endif
-    let l:previous = l:current_path
-    let l:current_path = s:updir(l:current_path)
-  endwhile
+  let l:gitignore_files = gitwildignore#discover_gitignore_files(l:git_root)
 
   " Collect ignore patterns from each ignorefile
   for f in l:gitignore_files
@@ -135,11 +129,6 @@ endfunction
 
 " Ignore-patterns cache, keyed by git root. Save a minor amount of processing,
 " but also useful for debugging, maybe.
-" (The "caching" means remembering ALL ignored files throughout a repository,
-" so that if you first opened up <root>/inner/dir1/file1, then open
-" <root>/inner/dir2/file1, the wildignore value will include the ignored files
-" from inner/dir1/.gitignore, and then if you go back to inner/dir1/file1, the
-" wildignore value will now include those from inner/dir2/.gitignore.)
 
 if !exists('g:gitwildignore_patterns')
   let g:gitwildignore_patterns = {}
