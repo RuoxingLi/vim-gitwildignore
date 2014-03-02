@@ -6,7 +6,7 @@
 if exists('g:loaded_gitwildignore')
   finish
 endif
-let g:loaded_gitwildignnore = 1
+let g:loaded_gitwildignore = 1
 let importants = []
 
 " Return a list of file patterns we want to ignore in the gitignore
