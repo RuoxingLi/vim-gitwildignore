@@ -15,6 +15,12 @@ endif
 
 let g:loaded_gitwildignore = 1
 
+" set to 1 to use 'git ls-files -o -i --exclude-standard' to get ignored files
+" rather than reading .gitignore files
+if !exists('g:gitwildignore_use_ls_files')
+  let g:gitwildignore_use_ls_files = 0
+endif
+
 " Return essentially '<path>/..'
 function! s:updir(path)
   return fnamemodify(a:path, ":h")
@@ -111,9 +117,24 @@ function! gitwildignore#discover_gitignore_files(root)
   return l:files
 endfunction
 
+function! gitwildignore#get_ignored_by_lsfiles(root)
+  let l:cmd = 'git ls-files -o -i --exclude-standard "' . a:root . '"'
+  let l:output = system(l:cmd)
+  let l:ignored = split(l:output, '\n')
+
+  if l:output =~ "^fatal:"
+    echoe "gitwildignore couldn't get ignored files:"
+    echoe l:output
+    let l:ignored = []
+  endif
+
+  return l:ignored
+endfunction
+
 function! gitwildignore#get_all_ignores(path)
   let l:gitignore_files = []
   let l:git_root = gitwildignore#find_git_root(a:path)
+  let l:curpath = fnamemodify(a:path, ':p:h')
 
   let l:ignore_patterns = {'ignore': [], 'include': []}
 
@@ -122,14 +143,24 @@ function! gitwildignore#get_all_ignores(path)
     return l:ignore_patterns
   endif
 
-  let l:gitignore_files = gitwildignore#discover_gitignore_files(l:git_root)
+  if g:gitwildignore_use_ls_files
+    let l:lsfiles = gitwildignore#get_ignored_by_lsfiles(l:git_root)
+    for file in l:lsfiles
+      " apparently git ls-files gives the file locations relative to the cwd
+      " when it is called.
+      let l:path = simplify(l:curpath . '/' . file)
+      let l:ignore_patterns.ignore += [ l:path ]
+    endfor
+  else
+    let l:gitignore_files = gitwildignore#discover_gitignore_files(l:git_root)
 
-  " Collect ignore patterns from each ignorefile
-  for f in l:gitignore_files
-    let l:patterns = gitwildignore#get_file_patterns(f)
-    let l:ignore_patterns.ignore += l:patterns.ignore
-    let l:ignore_patterns.include += l:patterns.include
-  endfor
+    " Collect ignore patterns from each ignorefile
+    for f in l:gitignore_files
+      let l:patterns = gitwildignore#get_file_patterns(f)
+      let l:ignore_patterns.ignore += l:patterns.ignore
+      let l:ignore_patterns.include += l:patterns.include
+    endfor
+  endif
 
   return l:ignore_patterns
 endfunction
@@ -198,7 +229,7 @@ endfunction
 augroup gitwildignore
   autocmd!
   " Set wildignore when you go into a buffer.
-  autocmd BufNewFile,BufReadPost * call gitwildignore#init(expand('<amatch>:p'))
+  autocmd BufEnter * call gitwildignore#init(expand('<amatch>:p:h'))
   " Cleanup when leaving a buffer.
   autocmd BufLeave * call gitwildignore#leave()
 augroup END
