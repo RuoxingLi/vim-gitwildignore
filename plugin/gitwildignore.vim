@@ -177,6 +177,11 @@ if !has_key(g:gitwildignore_patterns, '/')
 endif
 
 function! gitwildignore#init(path)
+  " TODO: Add setting for skipped filetypes.
+  if &filetype == "gitcommit"
+    return
+  endif
+
   " Based on vim-fugitive fugitive#detect function
   if exists('b:git_root') && (b:git_root ==# '' || b:git_root =~# '/$')
     unlet b:git_root
@@ -189,7 +194,9 @@ function! gitwildignore#init(path)
     endif
   endif
 
-  if exists('b:git_root')
+  if !exists('b:git_root')
+    let l:wildignorelist = g:gitwildignore_patterns['/']
+  else
     " Look up cached ignore values.
     if has_key(g:gitwildignore_patterns, b:git_root)
       let l:ignored = g:gitwildignore_patterns[b:git_root]
@@ -210,19 +217,19 @@ function! gitwildignore#init(path)
     let g:gitwildignore_patterns[b:git_root] = l:ignored
 
     let l:wildignorelist = g:gitwildignore_patterns['/'] + l:ignored
-    let l:wildignore = join(l:wildignorelist, ',')
-
-    let b:wildignorelist = l:wildignorelist
-    let b:saved_wildignore = &wildignore
-    execute "set wildignore=" . l:wildignore
   endif
+
+  let l:wildignore = join(l:wildignorelist, ',')
+
+  let b:wildignorelist = l:wildignorelist
+  execute "set wildignore=" . l:wildignore
 endfunction
 
 function! gitwildignore#leave()
-  if exists('b:saved_wildignore')
-    execute "set wildignore=" . b:saved_wildignore
-    unlet b:saved_wildignore
+  if exists('b:wildignorelist')
     unlet b:wildignorelist
+    " Restore wildignore to the "global" ignore pattern.
+    execute "set wildignore=" . join(g:gitwildignore_patterns['/'], ',')
   endif
 endfunction
 
