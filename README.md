@@ -22,18 +22,19 @@ Bundle 'mikewadsten/vim-gitwildignore'
       whatever git claims is an ignored file, is ignored. This might be a
       slight performance hit if your repository has lots of ignored files (e.g.
       `.pyc` files, or whatever). I don't know this for sure, though.
-    * Enable by adding the following to your `.vimrc` file:
+    * Disable by adding the following to your `.vimrc` file:
 
-                let g:gitwildignore_use_ls_files = 1
+                let g:gitwildignore_use_ls_files = 0
 
 
 ## TODO
 
-  * Add support for ignore negations (leading `!` characters) when not using
-    `git ls-files`
   * Investigate whether buffer-local `wildignore` is really necessary, given
     that the `.gitignore` entries have the directory path prepended to them.
   * Make sure this works right when exploring in netrw.
+  * ~~Add support for ignore negations (leading `!` characters) when not using
+    `git ls-files`~~ (Just use ls-files, there's no reason not to since the
+    ignore list is refreshed when you re-enter a buffer!)
 
 
 [![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/mikewadsten/vim-gitwildignore/trend.png)](https://bitdeli.com/free "Bitdeli Badge")

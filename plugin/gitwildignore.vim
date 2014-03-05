@@ -15,10 +15,10 @@ endif
 
 let g:loaded_gitwildignore = 1
 
-" set to 1 to use 'git ls-files -o -i --exclude-standard' to get ignored files
-" rather than reading .gitignore files
+" set to 0 to read .gitignore files rather than using
+" `git ls-files -oi --exclude-standard` to get ignored files.
 if !exists('g:gitwildignore_use_ls_files')
-  let g:gitwildignore_use_ls_files = 0
+  let g:gitwildignore_use_ls_files = 1
 endif
 
 " Return essentially '<path>/..'
@@ -118,7 +118,7 @@ function! gitwildignore#discover_gitignore_files(root)
 endfunction
 
 function! gitwildignore#get_ignored_by_lsfiles(root)
-  let l:cmd = 'git ls-files -o -i --exclude-standard "' . a:root . '"'
+  let l:cmd = 'git ls-files -oi --exclude-standard "' . a:root . '"'
   let l:output = system(l:cmd)
   let l:ignored = split(l:output, '\n')
 
