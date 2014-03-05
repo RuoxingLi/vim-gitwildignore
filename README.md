@@ -18,10 +18,14 @@ Bundle 'mikewadsten/vim-gitwildignore'
   * Buffer-local `wildignore` values - so you can switch between buffers
     without worrying about global state.
   * Handles negated ignores!
-    * This is done by using `git ls-files -o -i --exclude-standard`, so
-      whatever git claims is an ignored file, is ignored. This might be a
-      slight performance hit if your repository has lots of ignored files (e.g.
-      `.pyc` files, or whatever). I don't know this for sure, though.
+    * This is done by using
+      `git ls-files -oi --exclude-standard --directory`, so
+      whatever git claims is an ignored file, is ignored. This feature will not
+      work so well if you're ignoring dozens to hundreds of individual files
+      (e.g. `*.pyc` files), but it does work if you ignore specific
+      directories. (For instance, if your gitignore file includes your
+      virtualenv venv/ directory, then only one entry needs to be added to
+      wildignore, rather than the hundreds of individual files.)
     * Disable by adding the following to your `.vimrc` file:
 
                 let g:gitwildignore_use_ls_files = 0

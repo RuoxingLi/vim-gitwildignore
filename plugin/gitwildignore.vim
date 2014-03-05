@@ -118,7 +118,11 @@ function! gitwildignore#discover_gitignore_files(root)
 endfunction
 
 function! gitwildignore#get_ignored_by_lsfiles(root)
-  let l:cmd = 'git ls-files -oi --exclude-standard "' . a:root . '"'
+  " --directory means that, if an entire directory is ignored rather than just
+  "  some files inside it, then return just the directory name/path.
+  let l:cmd = 'git ls-files -oi --exclude-standard --directory "__root__"'
+  let l:cmd = substitute(l:cmd, '__root__', a:root, 'g')
+
   let l:output = system(l:cmd)
   let l:ignored = split(l:output, '\n')
 
@@ -128,7 +132,13 @@ function! gitwildignore#get_ignored_by_lsfiles(root)
     let l:ignored = []
   endif
 
-  return l:ignored
+  " To get Vim to ignore directories, we need to remove the trailing slash.
+  let l:ignored_sans_trailing_slash = []
+  for file in l:ignored
+    let l:ignored_sans_trailing_slash += [ substitute(file, '/$', '', '') ]
+  endfor
+
+  return l:ignored_sans_trailing_slash
 endfunction
 
 function! gitwildignore#get_all_ignores(path)
