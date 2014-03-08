@@ -229,6 +229,16 @@ function! gitwildignore#init(path)
     let l:wildignorelist = g:gitwildignore_patterns['/'] + l:ignored
   endif
 
+  " fnameescape ALL the files!
+  let l:wildignorelist_escaped = []
+  for fname in l:wildignorelist
+    " Need two slashes to really escape commas, so that means we need to use
+    " EIGHT in the substitution... *sigh*
+    let escaped = substitute(fnameescape(fname), ",", "\\\\\\\\,", "g")
+    let l:wildignorelist_escaped += [ escaped ]
+  endfor
+
+  let l:wildignorelist = l:wildignorelist_escaped
   let l:wildignore = join(l:wildignorelist, ',')
 
   let b:wildignorelist = l:wildignorelist
