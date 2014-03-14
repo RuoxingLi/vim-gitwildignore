@@ -109,8 +109,11 @@ function! gitwildignore#discover_gitignore_files(root)
   let l:files = split(l:findoutput, '\n')
 
   if l:findoutput =~ "^fatal:"
-    echoe "gitwildignore couldn't discover .gitignore files:"
-    echoe l:findoutput
+    " Suppress errors from being inside the .git/ directory
+    if !(l:findoutput =~ "^fatal: This operation must be run in a work tree")
+      echoe "gitwildignore couldn't discover .gitignore files:"
+      echoe l:findoutput
+    endif
     let l:files = []
   endif
 
@@ -127,8 +130,11 @@ function! gitwildignore#get_ignored_by_lsfiles(root)
   let l:ignored = split(l:output, '\n')
 
   if l:output =~ "^fatal:"
-    echoe "gitwildignore couldn't get ignored files:"
-    echoe l:output
+    " Suppress errors from being inside the .git/ directory
+    if !(l:output =~ "^fatal: This operation must be run in a work tree")
+      echoe "gitwildignore couldn't get ignored files:"
+      echoe l:output
+    endif
     let l:ignored = []
   endif
 
