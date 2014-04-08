@@ -39,6 +39,10 @@ Bundle 'mikewadsten/vim-gitwildignore'
   * ~~Add support for ignore negations (leading `!` characters) when not using
     `git ls-files`~~ (Just use ls-files, there's no reason not to since the
     ignore list is refreshed when you re-enter a buffer!)
+  * Remove dependency on vim-fugitive
+    * The only thing it's used for anymore, is to ask "are we inside a Git repo?". Once we get that answer,
+      we completely discard the path we get from fugitive, and use explicit Git commands to get the 'right'
+      information. Hence, we _really_ don't need to depend on fugitive.
 
 
 [![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/mikewadsten/vim-gitwildignore/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
