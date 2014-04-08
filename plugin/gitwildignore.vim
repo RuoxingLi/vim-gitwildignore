@@ -44,7 +44,26 @@ function! gitwildignore#find_git_root(path)
     return ''
   endif
 
-  let b:git_root = s:updir(l:git_dir)
+  " Ignore whatever fugitive told us, and use rev-parse to give us the root
+  " directory... this fixes issues with being inside submodules.
+  " (show-cdup gives us the relative path to the root. show-toplevel would give
+  " us the absolute path, which ends up being problematic when using symlinks)
+  let l:revparseoutput = system('git rev-parse --show-cdup')
+  if l:revparseoutput =~ '^fatal:'
+    " What? I don't even
+    echoe "Failed to figure out where the git root was:" .. l:revparseoutput
+    return ''
+  endif
+
+  let l:split_output = split(l:revparseoutput, '\n')
+  if len(l:split_output)
+    " Get first line of output
+    " Remove the trailing slash
+    let b:git_root = substitute(l:split_output[0], '/$', '', '')
+  else
+    " Output was empty -- we're sitting at the root directory.
+    let b:git_root = '.'
+  endif
 
   return b:git_root
 endfunction
@@ -123,7 +142,8 @@ endfunction
 function! gitwildignore#get_ignored_by_lsfiles(root)
   " --directory means that, if an entire directory is ignored rather than just
   "  some files inside it, then return just the directory name/path.
-  let l:cmd = 'git ls-files -oi --exclude-standard --directory "__root__"'
+  " -C tells git to pretend the current work tree is that argument
+  let l:cmd = "git -C __root__ ls-files -oi --exclude-standard --directory"
   let l:cmd = substitute(l:cmd, '__root__', a:root, 'g')
 
   let l:output = system(l:cmd)
@@ -139,12 +159,17 @@ function! gitwildignore#get_ignored_by_lsfiles(root)
   endif
 
   " To get Vim to ignore directories, we need to remove the trailing slash.
-  let l:ignored_sans_trailing_slash = []
+  let l:ignored_files = []
   for file in l:ignored
-    let l:ignored_sans_trailing_slash += [ substitute(file, '/$', '', '') ]
+    if file =~ '/$'
+      " Ignore the directory and anything inside it, by adding *
+      let l:ignored_files += [ file . '*' ]
+    endif
+
+    let l:ignored_files += [ file ]
   endfor
 
-  return l:ignored_sans_trailing_slash
+  return l:ignored_files
 endfunction
 
 function! gitwildignore#get_all_ignores(path)
@@ -160,11 +185,16 @@ function! gitwildignore#get_all_ignores(path)
   endif
 
   if g:gitwildignore_use_ls_files
-    let l:lsfiles = gitwildignore#get_ignored_by_lsfiles(l:git_root)
+    let l:root = fnameescape(l:git_root)
+    let l:lsfiles = gitwildignore#get_ignored_by_lsfiles(l:root)
     for file in l:lsfiles
       " apparently git ls-files gives the file locations relative to the cwd
       " when it is called.
-      let l:path = simplify(l:curpath . '/' . file)
+      let l:path = simplify(l:root . '/' . file)
+      " Strip leading './' because that's just useless
+      if l:path =~ '^\./'
+        let l:path = strpart(l:path, 2)
+      endif
       let l:ignore_patterns.ignore += [ l:path ]
     endfor
   else
