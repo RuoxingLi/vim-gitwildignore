@@ -3,13 +3,9 @@
 " Inspired by Adam Bellaire's gitignore script
 "
 " Maintainer: Mike Wadsten
-" Version 0.0.2
+" Version 0.0.3
 
-" My version of gitwildignore requires fugitive
-if !exists('g:loaded_fugitive')
-  echoe "vim-gitwildignore: vim-fugitive is required!"
-  finish
-elseif exists('g:loaded_gitwildignore')
+if exists('g:loaded_gitwildignore')
   finish
 endif
 
@@ -38,20 +34,23 @@ function! gitwildignore#find_git_root(path)
     return b:git_root
   endif
 
-  let l:git_dir = fugitive#extract_git_dir(l:filepath)
-  if l:git_dir == ''
-    " No Git root to be found
+  " Use rev-parse to give us the root directory... this fixes issues with being
+  " inside submodules.
+  " (show-cdup gives us the relative path to the root. show-toplevel would give
+  " us the absolute path, which ends up being problematic when using symlinks)
+
+  " Hold your horses, me. First, are we even in a working directory?
+  let l:inworkdir = system('git rev-parse --is-inside-work-tree')
+  if l:inworkdir =~ '^fatal:'
+    " Not inside a Git repository at all. Abort abort abort
+    " (Typically happens when running `git commit` and its ilk.)
     return ''
   endif
 
-  " Ignore whatever fugitive told us, and use rev-parse to give us the root
-  " directory... this fixes issues with being inside submodules.
-  " (show-cdup gives us the relative path to the root. show-toplevel would give
-  " us the absolute path, which ends up being problematic when using symlinks)
   let l:revparseoutput = system('git rev-parse --show-cdup')
   if l:revparseoutput =~ '^fatal:'
     " What? I don't even
-    echoe "Failed to figure out where the git root was:" .. l:revparseoutput
+    echoe "Failed to figure out where the git root was:" . l:revparseoutput
     return ''
   endif
 
